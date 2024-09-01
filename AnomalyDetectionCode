@@ -1,0 +1,112 @@
+import os
+import pandas as pd
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+#Call Directory
+files = os.listdir('/content/drive/My Drive/')
+files
+
+import pandas as pd
+file_path = '/content/drive/My Drive/ClusterNewsProject/cars_hyundai.csv'
+dataset = pd.read_csv(file_path)
+dataset.head()
+
+req_dataset=dataset[['Engine Temperature (°C)','Brake Pad Thickness (mm)','Tire Pressure (PSI)']]
+y_target=dataset[['Anomaly Indication']]
+
+req_dataset=req_dataset.astype(float)
+
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+
+#Split data
+X_train, X_test, y_train, y_test = train_test_split(req_dataset,y_target, test_size=0.2, random_state=42, stratify=None)
+
+# Standardize the data
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+import tensorflow as tf
+from tensorflow.keras.layers import Input, Dense
+from tensorflow.keras.models import Model
+
+# Define the Autoencoder model
+input_dim = X_train_scaled.shape[1]  # Number of features (4 in this case)
+encoding_dim = 2  # Size of the encoded representation (can be adjusted)
+
+# Define the input layer
+input_layer = Input(shape=(input_dim,))
+encoded = Dense(encoding_dim, activation='relu')(input_layer)
+decoded = Dense(input_dim, activation='sigmoid')(encoded)
+
+# Build the Autoencoder model
+autoencoder = Model(inputs=input_layer, outputs=decoded)
+
+# Compile the model
+autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+
+history = autoencoder.fit(X_train_scaled, X_train_scaled,
+                          epochs=50,
+                          batch_size=256,
+                          shuffle=True,
+                          validation_split=0.1,
+                          verbose=1)
+
+import numpy as np
+
+# Predict on test data
+X_test_reconstructed = autoencoder.predict(X_test_scaled)
+
+# Calculate the reconstruction error
+mse = np.mean(np.power(X_test_scaled - X_test_reconstructed, 2), axis=1)
+
+# Define a threshold for anomaly detection
+threshold = np.percentile(mse, 95)
+
+# Detect anomalies
+y_pred = (mse > threshold).astype(int)
+
+
+# Display results
+print(f"Threshold for anomaly detection: {threshold}")
+print(f"Number of anomalies detected: {np.sum(y_pred)}")
+
+
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, precision_recall_curve
+import matplotlib.pyplot as plt
+
+# Assuming y_pred are the predicted anomalies (0 or 1)
+# Assuming y_test are the true labels (0 or 1)
+
+# Convert predictions for confusion matrix and other metrics
+y_pred_binary = (y_pred > 0).astype(int)  # Ensure y_pred is in binary format
+
+# Confusion Matrix
+conf_matrix = confusion_matrix(y_test, y_pred_binary)
+print("Confusion Matrix:")
+print(conf_matrix)
+
+# Classification Report
+class_report = classification_report(y_test, y_pred_binary, target_names=['Normal', 'Anomalous'])
+print("Classification Report:")
+print(class_report)
+
+# ROC AUC Score
+roc_auc = roc_auc_score(y_test, mse)
+print(f"ROC AUC Score: {roc_auc}")
+
+# Precision-Recall Curve
+precision, recall, thresholds = precision_recall_curve(y_test, mse)
+
+# Plot Precision-Recall Curve
+plt.figure()
+plt.plot(recall, precision, marker='.')
+plt.title('Precision-Recall Curve')
+plt.xlabel('Recall')
+plt.ylabel('Precision')
+plt.show()
