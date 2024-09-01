@@ -1,0 +1,109 @@
+import os
+import pandas as pd
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+#Call Directory
+files = os.listdir('/content/drive/My Drive/')
+print(files)
+
+import pandas as pd
+file_path = '/content/drive/My Drive/ProjectsFiles/data.csv'
+dataset = pd.read_csv(file_path)
+dataset.head()
+
+from sklearn.preprocessing import LabelEncoder
+from sklearn.impute import SimpleImputer
+
+
+# Handle missing values (impute with mean or mode)
+imputer = SimpleImputer(strategy='most_frequent')
+df_imputed = pd.DataFrame(imputer.fit_transform(dataset), columns=dataset.columns)
+
+# Convert categorical features to numerical format
+label_encoders = {}
+categorical_columns = ['Make', 'Engine Fuel Type', 'Transmission Type', 'Driven_Wheels', 'Market Category', 'Vehicle Size', 'Vehicle Style']
+
+for col in categorical_columns:
+    le = LabelEncoder()
+    df_imputed[col] = le.fit_transform(df_imputed[col])
+    label_encoders[col] = le
+
+print(df_imputed.head())
+
+def recommend_cars(user_preferences, df):
+    # User preferences should be in the form of a dictionary
+    preferences = {
+        'Make': user_preferences.get('Make'),
+        'Engine Fuel Type': user_preferences.get('Engine Fuel Type'),
+        'Transmission Type': user_preferences.get('Transmission Type'),
+        'Driven_Wheels': user_preferences.get('Driven_Wheels'),
+        'Market Category': user_preferences.get('Market Category'),
+        'Vehicle Size': user_preferences.get('Vehicle Size'),
+        'Vehicle Style': user_preferences.get('Vehicle Style'),
+        'Engine HP': user_preferences.get('Engine HP'),
+        'Engine Cylinders': user_preferences.get('Engine Cylinders'),
+        'Number of Doors': user_preferences.get('Number of Doors'),
+        'highway MPG': user_preferences.get('highway MPG'),
+        'city mpg': user_preferences.get('city mpg'),
+        'Popularity': user_preferences.get('Popularity'),
+        'MSRP': user_preferences.get('MSRP')
+    }
+
+    # Apply filters to dataset
+    filtered_df = df.copy()
+    for key, value in preferences.items():
+        if value is not None:
+            if key in ['Engine HP', 'Engine Cylinders', 'Number of Doors', 'highway MPG', 'city mpg', 'Popularity', 'MSRP']:
+                filtered_df = filtered_df[filtered_df[key] >= value]
+            else:
+                if key in filtered_df.columns:
+                    filtered_df = filtered_df[filtered_df[key] == value]
+    
+    # Sort by Popularity or MSRP
+    filtered_df = filtered_df.sort_values(by='Popularity', ascending=False)
+    
+    return filtered_df[['Make', 'Model', 'Year', 'Engine Fuel Type', 'Engine HP', 'Transmission Type', 'Driven_Wheels', 'Number of Doors', 'Market Category', 'Vehicle Size', 'Vehicle Style', 'highway MPG', 'city mpg', 'Popularity', 'MSRP']].head(5)
+
+# Example user preferences
+user_preferences = {
+    'Engine HP': 200,
+    'Transmission Type': '1',  # Assuming '1' is encoded value for automatic transmission
+    'Vehicle Size': '1',  # Assuming '1' is encoded value for mid-size
+}
+
+# Get recommendations
+recommended_cars = recommend_cars(user_preferences, df_imputed)
+print("\nRecommended cars based on user preferences:")
+print(recommended_cars)
+
+from transformers import pipeline
+
+# Initialize the conversational model
+generator = pipeline('text-generation', model='gpt2')
+
+def get_user_preferences(user_query):
+    # Parse user query to extract preferences
+    # For simplicity, let's assume user query directly provides feature values in a dictionary format
+    # In a real-world scenario, natural language understanding and extraction would be required
+    user_preferences = {
+        'Engine HP': 200,
+        'Transmission Type': '1',
+        'Vehicle Size': '1',
+    }
+    return user_preferences
+
+def generate_car_recommendation(user_query):
+    user_preferences = get_user_preferences(user_query)
+    recommendations = recommend_cars(user_preferences, df_imputed)
+    return recommendations
+
+# Example user query
+user_query = "I need a car with at least 200 HP and automatic transmission."
+
+# Generate recommendations
+recommended_cars = generate_car_recommendation(user_query)
+print("\nCar recommendations based on user query:")
+print(recommended_cars)
+
